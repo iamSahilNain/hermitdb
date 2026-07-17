@@ -4,7 +4,7 @@
 FROM ubuntu:24.04 AS dev
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake git ca-certificates \
-        python3 redis-tools clang-format gdb strace \
+        python3 redis-tools redis-server clang-format gdb strace \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /work
 

@@ -9,6 +9,7 @@ data/
 # Benchmark raw outputs are reproducible; keep the directory, not the noise
 bench/results/*
 !bench/results/.gitkeep
+!bench/results/FORMAT.md
 
 # Tooling
 compile_commands.json
