@@ -1,0 +1,17 @@
+# Build trees (native or via `make build` in the dev container)
+build/
+build-*/
+cmake-build-*/
+
+# Runtime state
+data/
+
+# Benchmark raw outputs are reproducible; keep the directory, not the noise
+bench/results/*
+!bench/results/.gitkeep
+
+# Tooling
+compile_commands.json
+.cache/
+.DS_Store
+__pycache__/
