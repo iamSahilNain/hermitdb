@@ -15,6 +15,15 @@ with Server(binary_from_argv()) as srv:
     expect(c.cmd("GET", "k") is None, "expired on access")
     expect(c.cmd("EXISTS", "k") == 0, "EXISTS agrees")
 
+    # TTL introspection (moved from test_tier1.py: needs CP3 state).
+    c.cmd("SET", "tmp", "v", "EX", "100")
+    ttl = c.cmd("TTL", "tmp")
+    expect(isinstance(ttl, int) and 90 <= ttl <= 100, f"TTL in range, got {ttl}")
+    pttl = c.cmd("PTTL", "tmp")
+    expect(isinstance(pttl, int) and 90_000 <= pttl <= 100_000, f"PTTL in range, got {pttl}")
+    expect(c.cmd("PERSIST", "tmp") == 1, "PERSIST -> :1")
+    expect(c.cmd("TTL", "tmp") == -1, "TTL after PERSIST -> :-1")
+
     # PEXPIRE on an existing key.
     c.cmd("SET", "p", "v")
     expect(c.cmd("PEXPIRE", "p", "300") == 1, "PEXPIRE -> :1")

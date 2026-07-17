@@ -35,7 +35,8 @@ class Server:
         self.proc = None
 
     def __enter__(self):
-        self.start()
+        if self.proc is None:
+            self.start()
         return self
 
     def start(self):

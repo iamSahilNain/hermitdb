@@ -19,6 +19,11 @@ target_link_libraries(scaffold_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME scaffold_tests COMMAND scaffold_tests)
 set_tests_properties(scaffold_tests PROPERTIES LABELS "scaffold")
 
+add_executable(m3_db_tests unit/m3_db_test.cpp)
+target_link_libraries(m3_db_tests PRIVATE hermit_core Catch2::Catch2WithMain)
+add_test(NAME m3_db_tests COMMAND m3_db_tests)
+set_tests_properties(m3_db_tests PROPERTIES LABELS "m3")
+
 add_executable(cp1_parser_tests unit/cp1_resp_parser_test.cpp)
 target_link_libraries(cp1_parser_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME cp1_parser_tests COMMAND cp1_parser_tests)
@@ -47,7 +52,10 @@ if(Python3_FOUND)
   hermit_integration_test(integration_ping        test_ping.py              "checkpoint;cp2")
   hermit_integration_test(integration_concurrency test_pipeline_clients.py  "checkpoint;cp2")
   hermit_integration_test(integration_slow_reader test_slow_reader.py       "checkpoint;cp2")
-  hermit_integration_test(integration_tier1       test_tier1.py             "m3")
+  # Built now, skipped (exit 77) until CP2 provides a running server; the
+  # command set itself is covered by the m3 unit tests without sockets.
+  hermit_integration_test(integration_tier1       test_tier1.py             "post-cp2")
+  set_tests_properties(integration_tier1 PROPERTIES SKIP_RETURN_CODE 77)
   hermit_integration_test(integration_ttl         test_ttl.py               "checkpoint;cp3")
   hermit_integration_test(integration_kill9       test_kill9_recovery.py    "checkpoint;cp4")
   hermit_integration_test(integration_incr        test_incr_concurrency.py  "checkpoint;cp5")
