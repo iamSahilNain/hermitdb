@@ -32,6 +32,17 @@ target_link_libraries(m3_command_tests PRIVATE hermit_core Catch2::Catch2WithMai
 add_test(NAME m3_command_tests COMMAND m3_command_tests)
 set_tests_properties(m3_command_tests PROPERTIES LABELS "m3")
 
+add_executable(m3_snapshot_tests unit/m3_snapshot_test.cpp)
+target_link_libraries(m3_snapshot_tests PRIVATE hermit_core Catch2::Catch2WithMain)
+add_test(NAME m3_snapshot_tests COMMAND m3_snapshot_tests)
+set_tests_properties(m3_snapshot_tests PROPERTIES LABELS "m3")
+
+# Complete serializer + CP3-stub expiry: fails until CP3 lands. Informational.
+add_executable(post_cp3_snapshot_ttl_tests unit/post_cp3_snapshot_ttl_test.cpp)
+target_link_libraries(post_cp3_snapshot_ttl_tests PRIVATE hermit_core Catch2::Catch2WithMain)
+add_test(NAME post_cp3_snapshot_ttl_tests COMMAND post_cp3_snapshot_ttl_tests)
+set_tests_properties(post_cp3_snapshot_ttl_tests PROPERTIES LABELS "post-cp3")
+
 add_executable(cp1_parser_tests unit/cp1_resp_parser_test.cpp)
 target_link_libraries(cp1_parser_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME cp1_parser_tests COMMAND cp1_parser_tests)
