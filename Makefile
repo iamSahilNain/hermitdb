@@ -17,8 +17,8 @@ configure:
 build: 	          ## incremental build inside the container
 	$(DOCKER_RUN) cmake --build build -j
 
-test: build       ## scaffold tests only — these must always be green
-	$(DOCKER_RUN) ctest --test-dir build -L scaffold --output-on-failure
+test: build       ## scaffold + m3 tests — these must always be green
+	$(DOCKER_RUN) ctest --test-dir build -L 'scaffold|m3' --output-on-failure
 
 test-all: build   ## everything, incl. checkpoint tests (red until you implement them)
 	$(DOCKER_RUN) ctest --test-dir build --output-on-failure

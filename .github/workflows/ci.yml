@@ -10,12 +10,14 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
       - name: Build (-Wall -Wextra -Werror)
         run: cmake --build build -j
-      - name: Scaffold tests (required)
-        run: ctest --test-dir build -L scaffold --output-on-failure
-      # Checkpoint tests are EXPECTED to fail until the corresponding CP is
-      # hand-implemented (SPEC §0.3). Informational only — never blocks CI.
-      - name: Checkpoint tests (informational)
-        run: ctest --test-dir build -LE scaffold --output-on-failure || true
+      - name: Scaffold + M3 tests (required)
+        run: ctest --test-dir build -L "scaffold|m3" --output-on-failure
+      # checkpoint-labeled tests are EXPECTED to fail until the corresponding
+      # CP is hand-implemented (SPEC §0.3); post-cp2 tests skip themselves
+      # while the event loop is a stub; post-cp3 fails until expiry stores
+      # state. All informational — never blocks CI.
+      - name: Checkpoint / post-cp tests (informational)
+        run: ctest --test-dir build -LE "scaffold|m3" --output-on-failure || true
 
   tsan:
     # Becomes load-bearing at CP5 (SPEC §5); until then it proves the TSan
@@ -27,5 +29,5 @@ jobs:
         run: cmake -S . -B build-tsan -DHERMIT_TSAN=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
       - name: Build
         run: cmake --build build-tsan -j
-      - name: Scaffold tests under TSan
-        run: ctest --test-dir build-tsan -L scaffold --output-on-failure
+      - name: Scaffold + M3 tests under TSan
+        run: ctest --test-dir build-tsan -L "scaffold|m3" --output-on-failure
