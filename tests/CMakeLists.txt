@@ -24,6 +24,14 @@ target_link_libraries(m3_db_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME m3_db_tests COMMAND m3_db_tests)
 set_tests_properties(m3_db_tests PROPERTIES LABELS "m3")
 
+add_executable(m3_command_tests
+  unit/m3_commands_test.cpp
+  unit/m3_list_commands_test.cpp
+)
+target_link_libraries(m3_command_tests PRIVATE hermit_core Catch2::Catch2WithMain)
+add_test(NAME m3_command_tests COMMAND m3_command_tests)
+set_tests_properties(m3_command_tests PROPERTIES LABELS "m3")
+
 add_executable(cp1_parser_tests unit/cp1_resp_parser_test.cpp)
 target_link_libraries(cp1_parser_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME cp1_parser_tests COMMAND cp1_parser_tests)
