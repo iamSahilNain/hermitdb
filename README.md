@@ -5,11 +5,21 @@ A RESP2-compatible in-memory key-value store in C++17. Speaks to the official
 persistence with crash recovery, configurable threading — no Boost, no
 libevent, no third-party protocol or hash-table libraries.
 
-> **Status.** Scaffolding + core keyspace complete. The five load-bearing
-> components (RESP parser, event loop, TTL expiry, WAL, threading model) are
-> **learning checkpoints, deliberately unimplemented** — see
-> [How this was built](#how-this-was-built). The server binary refuses to
-> serve traffic until CHECKPOINT 2 exists, on purpose.
+> **Status: bootstrap complete — hand-built core in progress.** The project
+> plumbing (build system, keyspace, command dispatch, tests, bench harness)
+> was AI-scaffolded in two sessions, by design. Every load-bearing component
+> is a **learning checkpoint I implement by hand**, tracked below — the
+> server refuses to serve traffic until CP2 exists, on purpose. See
+> [How this was built](#how-this-was-built).
+
+| Checkpoint | Component | Status |
+|---|---|---|
+| CP1 | Incremental RESP2 parser | 🎯 next up |
+| CP2 | epoll event loop | ⏳ queued |
+| CP3 | TTL expiry (lazy + sampled active) | ⏳ queued |
+| CP4 | Write-ahead log + crash recovery | ⏳ queued |
+| CP5 | Threading model | ⏳ queued |
+| CP6 | LRU eviction (stretch) | ⏳ optional |
 
 <!-- TODO(M7): 30-second asciinema/GIF of redis-cli + kill -9 recovery -->
 
