@@ -1,8 +1,12 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <optional>
+#include <random>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "core/db.h"
 #include "util/clock.h"
@@ -55,11 +59,31 @@ class ExpiryManager {
 
  private:
   // ==== CHECKPOINT 3: YOUR CODE ====
-  // Your TTL bookkeeping lives here. Think about what "sample N random keys"
-  // requires of the container you choose.
+  // DECISION-3 resolved: WALL clock. `EXPIRE k 10` is a promise about ten
+  // seconds of the user's time, and an absolute wall deadline is the only
+  // form that survives serialization into a snapshot and a restart. The NTP
+  // hazard is real and accepted; see DECISIONS.md. Replay determinism is
+  // bought separately, by logging an explicit DEL at eviction (CP3<->CP4).
+  //
+  // "Sample N random keys" is the constraint that picks the container: a hash
+  // map alone cannot do uniform random selection in O(1). So TTLs live in a
+  // dense vector (random index = random key) with a key->slot index beside it;
+  // removal is swap-with-last, which keeps the vector dense and O(1).
+  struct Slot {
+    std::string key;
+    int64_t at_ms;
+  };
+
+  // Drops a key's TTL bookkeeping. Returns false if it had none.
+  bool untrack(const std::string& key);
+
   Db& db_;
   const Clock& clock_;
   EvictFn evict_;
+
+  std::vector<Slot> slots_;
+  std::unordered_map<std::string, std::size_t> index_;
+  std::mt19937 rng_{0x5EEDu};
   // ==== END CHECKPOINT 3 ====
 };
 
