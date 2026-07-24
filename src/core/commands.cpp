@@ -7,6 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "persist/wal.h"
 #include "protocol/resp_writer.h"
 
 namespace hermit::core {
@@ -229,6 +230,29 @@ std::string expire_generic(Ctx& c, const std::string& name, const Command& cmd,
 std::string cmd_expire(Ctx& c, const Command& cmd) { return expire_generic(c, "expire", cmd, 1000); }
 std::string cmd_pexpire(Ctx& c, const Command& cmd) { return expire_generic(c, "pexpire", cmd, 1); }
 
+// The absolute-deadline form. Clients rarely send it; the WAL always does.
+// A relative EXPIRE cannot be replayed faithfully — re-evaluating "+10s"
+// against the recovery clock silently extends every TTL by the downtime — so
+// CP4 rewrites relative expirations into this before they hit the log. Real
+// Redis does exactly this when translating commands into the AOF.
+std::string cmd_pexpireat(Ctx& c, const Command& cmd) {
+  if (cmd.size() != 3) return wrong_arity("pexpireat");
+  int64_t at_ms = 0;
+  if (!parse_i64(cmd[2], at_ms)) return not_an_integer();
+  touch(c, cmd[1]);
+  if (!c.db.exists(cmd[1])) return resp::integer(0);
+  if (at_ms <= now_ms(c.clock)) {
+    // Deadline already behind us — during replay this is a key that died
+    // while the process was down. Deleting it here IS the deterministic
+    // outcome; leaving it would resurrect it.
+    c.db.del(cmd[1]);
+    c.expiry.persist(cmd[1]);
+    return resp::integer(1);
+  }
+  c.expiry.set_expiry(cmd[1], at_ms);
+  return resp::integer(1);
+}
+
 std::string ttl_generic(Ctx& c, const std::string& name, const Command& cmd, bool in_seconds) {
   if (cmd.size() != 2) return wrong_arity(name);
   touch(c, cmd[1]);
@@ -336,6 +360,7 @@ const std::unordered_map<std::string, Handler>& table() {
       {"PING", cmd_ping},       {"ECHO", cmd_echo},     {"SET", cmd_set},
       {"GET", cmd_get},         {"DEL", cmd_del},       {"EXISTS", cmd_exists},
       {"EXPIRE", cmd_expire},   {"PEXPIRE", cmd_pexpire}, {"TTL", cmd_ttl},
+      {"PEXPIREAT", cmd_pexpireat},
       {"PTTL", cmd_pttl},       {"PERSIST", cmd_persist}, {"INCR", cmd_incr},
       {"DECR", cmd_decr},       {"INCRBY", cmd_incrby}, {"TYPE", cmd_type},
       {"FLUSHALL", cmd_flushall}, {"DBSIZE", cmd_dbsize}, {"KEYS", cmd_keys},
@@ -351,10 +376,57 @@ const std::unordered_map<std::string, Handler>& table() {
 CommandDispatcher::CommandDispatcher(Db& db, ExpiryManager& expiry, const Clock& clock)
     : db_(db), expiry_(expiry), clock_(clock) {}
 
+void CommandDispatcher::log_mutation(const std::string& name, const protocol::Command& cmd,
+                                     const std::string& reply) {
+  // An error reply means nothing changed, so nothing is owed to the log.
+  if (reply.empty() || reply[0] == '-') return;
+
+  const auto put = [this](protocol::Command record) { wal_->append(record); };
+
+  if (name == "SET") {
+    // "+OK" is the only reply that means a write landed; NX/XX declining
+    // answers with a null bulk and must NOT be logged.
+    if (reply != "+OK\r\n") return;
+    put({"SET", cmd[1], cmd[2]});
+    // EX/PX are relative; persist the resolved absolute deadline instead.
+    if (auto at = expiry_.expiry_at(cmd[1]))
+      put({"PEXPIREAT", cmd[1], std::to_string(*at)});
+    return;
+  }
+  if (name == "EXPIRE" || name == "PEXPIRE" || name == "PEXPIREAT") {
+    if (reply != ":1\r\n") return;
+    if (auto at = expiry_.expiry_at(cmd[1]))
+      put({"PEXPIREAT", cmd[1], std::to_string(*at)});
+    else
+      put({"DEL", cmd[1]});  // a non-positive TTL deletes outright
+    return;
+  }
+  if (name == "PERSIST") {
+    if (reply == ":1\r\n") put({"PERSIST", cmd[1]});
+    return;
+  }
+  if (name == "DEL") {
+    if (reply != ":0\r\n") put(cmd);
+    return;
+  }
+  // Deterministic on replay given the same preceding state, so they go in
+  // verbatim: the counter reaches the same value by the same route.
+  if (name == "INCR" || name == "DECR" || name == "INCRBY" || name == "LPUSH" ||
+      name == "RPUSH") {
+    if (reply[0] == ':') put(cmd);
+    return;
+  }
+  if (name == "LPOP" || name == "RPOP") {
+    if (reply != "$-1\r\n") put(cmd);  // popping an absent list changed nothing
+    return;
+  }
+  if (name == "FLUSHALL") {
+    if (reply == "+OK\r\n") put(cmd);
+    return;
+  }
+}
+
 std::string CommandDispatcher::execute(const protocol::Command& cmd) {
-  // wal_ is attached at M5 but not consulted here yet: the append call site
-  // and its ordering relative to the reply belong to CP4 (SPEC §5).
-  (void)wal_;
   if (cmd.empty()) return resp::error("ERR empty command");
   const std::string name = upper(cmd[0]);
 
@@ -368,7 +440,12 @@ std::string CommandDispatcher::execute(const protocol::Command& cmd) {
     return resp::error("ERR unknown command '" + cmd[0] + "'");
 
   Ctx ctx{db_, expiry_, clock_};
-  return it->second(ctx, cmd);
+  std::string reply = it->second(ctx, cmd);
+
+  // CP4 ordering: the record (and its fsync, under --fsync=always) lands here
+  // — after the mutation, before the caller can hand the reply to the client.
+  if (wal_ != nullptr) log_mutation(name, cmd, reply);
+  return reply;
 }
 
 }  // namespace hermit::core

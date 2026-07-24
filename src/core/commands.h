@@ -31,6 +31,11 @@ class CommandDispatcher {
   bool shutdown_requested() const { return shutdown_; }
 
  private:
+  // CP4: appends the durable form of a command that actually mutated state.
+  // Called post-execution, pre-reply — see the ordering note in persist/wal.h.
+  void log_mutation(const std::string& name, const protocol::Command& cmd,
+                    const std::string& reply);
+
   Db& db_;
   ExpiryManager& expiry_;
   const Clock& clock_;

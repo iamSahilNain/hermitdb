@@ -62,9 +62,34 @@ class Wal {
   WalStatus replay(const std::function<void(const protocol::Command&)>& fn);
   WalStatus rewrite(const std::function<bool(const std::string& tmp_path)>& write_snapshot);
 
+  // Encodes one command in the on-disk (== on-wire) RESP array form. Public
+  // because replay's truncation point is computed by re-encoding what parsed
+  // cleanly, and the crash tests assert against these exact bytes.
+  static std::string encode(const protocol::Command& cmd);
+
  private:
   // ==== CHECKPOINT 4: YOUR CODE ====
+  // ORDERING (the trade-off SPEC §5 leaves open): append+fsync happen AFTER
+  // the command mutates memory but BEFORE its reply reaches the client. So
+  // under --fsync=always an ACK is a durability promise: the record is on the
+  // platter before the client can observe the write. The cost is one flush in
+  // the client's critical path. Logging after the reply would be faster and
+  // would make the ACK a lie — a crash in that window loses a write the client
+  // was told had succeeded. Full crash-window analysis in DECISIONS.md.
+  //
+  // The log is a bare RESP stream: no per-record checksum, no length prefix.
+  // That is a deliberate limit — it detects a TORN tail (the record simply
+  // does not parse) but not BIT ROT in the middle of the file, which would
+  // replay as a valid-looking command. A CRC32 per record is the fix; it is
+  // in "What I'd build next", not here.
+  std::string dir() const;
+  std::string snapshot_path() const;
+  WalStatus fsync_now();
+
   Options opts_;
+  int fd_ = -1;                // append fd; -1 until open_for_append()
+  int64_t last_fsync_ms_ = 0;  // kEverySec bookkeeping
+  bool dirty_ = false;         // bytes written since the last successful fsync
   // ==== END CHECKPOINT 4 ====
 };
 
