@@ -32,6 +32,10 @@ class Server:
         self._owns_data_dir = data_dir is None
         self.args = [binary, f"--port={self.port}", f"--data-dir={self.data_dir}"]
         self.args += extra_args or []
+        # Lets the whole suite be re-run against another server configuration
+        # without forking the tests — CP5's acceptance is precisely "these same
+        # tests, but with --threads=N". Used by `make test-threaded`.
+        self.args += os.environ.get("HERMIT_EXTRA_ARGS", "").split()
         self.proc = None
 
     def __enter__(self):

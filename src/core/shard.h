@@ -36,6 +36,25 @@ class ShardedServer {
 
  private:
   // ==== CHECKPOINT 5: YOUR CODE ====
+  // DECISION-4 resolved: N REACTOR THREADS OVER ONE LOCKED KEYSPACE — option
+  // (a), reshaped. The SPEC's (a) puts one reactor in front of a worker pool;
+  // that hands every command across a queue and pays a wakeup for it. Here
+  // each thread owns a full epoll loop and the connections it accepted, so
+  // recv, RESP parsing, reply encoding and send — the majority of the work —
+  // run fully parallel, and only the keyspace mutation itself takes the lock.
+  //
+  // Why not (b), shared-nothing shards: correctness. `INCR counter` from 16
+  // connections must total exactly N*M, and under SO_REUSEPORT those
+  // connections land on arbitrary threads. Shared-nothing would need the
+  // command routed to the shard OWNING the key — a cross-thread hop per
+  // command, which is (a)'s queue cost reintroduced with worse tail latency.
+  // Hash-striped locks are the honest next step and are cheap to add; the
+  // single lock is here because the benchmark, not a hunch, should justify
+  // the complexity. See the measured Amdahl row in DECISIONS.md.
+  //
+  // All threads share ONE listening socket rather than SO_REUSEPORT sockets.
+  // The accept is a race the kernel already arbitrates: losers get EAGAIN,
+  // which the accept loop already handles as "queue drained".
   const Config& cfg_;
   // ==== END CHECKPOINT 5 ====
 };

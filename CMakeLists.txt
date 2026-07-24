@@ -14,6 +14,10 @@ endif()
 add_library(hermit_warnings INTERFACE)
 target_compile_options(hermit_warnings INTERFACE -Wall -Wextra -Werror)
 
+# CP5 runs one reactor thread per --threads.
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 option(HERMIT_TSAN "Build with ThreadSanitizer (CP5 CI job)" OFF)
 if(HERMIT_TSAN)
   add_compile_options(-fsanitize=thread -g -O1)
@@ -32,7 +36,7 @@ add_library(hermit_core
   src/persist/snapshot.cpp
 )
 target_include_directories(hermit_core PUBLIC src)
-target_link_libraries(hermit_core PUBLIC hermit_warnings)
+target_link_libraries(hermit_core PUBLIC hermit_warnings Threads::Threads)
 
 add_library(hermit_net
   src/net/listener.cpp
