@@ -1,10 +1,14 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include "net/connection.h"
 #include "net/listener.h"
 #include "protocol/resp_parser.h"
 #include "util/config.h"
@@ -59,13 +63,47 @@ class EventLoop {
 
  private:
   // ==== CHECKPOINT 2: YOUR CODE ====
-  // Your reactor state lives here: epoll fd, fd -> Connection map, tick
-  // bookkeeping, scratch read buffer, ...
+  // DECISION-1 resolved: LEVEL-TRIGGERED. See DECISIONS.md — the short version
+  // is that LT lets a partial drain re-fire instead of hanging the connection,
+  // which is the failure mode that actually bites, and it is what Redis's own
+  // ae_epoll.c uses. The fds are nonblocking anyway, so the drain loops below
+  // are written as if they were ET; LT is the safety net, not the design.
+  struct Tick {
+    TickFn fn;
+    int64_t interval_ms;
+    int64_t next_due_ms;
+  };
+
+  bool register_fd(int fd, uint32_t events);
+  bool modify_fd(int fd, uint32_t events);
+  void accept_new_clients();
+  // Returns false if the connection was destroyed — the caller must not touch
+  // it again (the reference is dangling once conns_ drops the owner).
+  bool handle_readable(Connection& conn);
+  // Pushes as much of outbuf as the kernel will take. Sets EPOLLOUT interest
+  // when bytes remain. Returns false if the connection died.
+  bool flush(Connection& conn);
+  void close_connection(int fd);
+  int64_t run_due_ticks(int64_t now_ms);
+
   Listener& listener_;
   const Config& cfg_;
   CommandHandler handler_;
   std::vector<std::pair<TickFn, int64_t>> ticks_;
-  bool stop_requested_ = false;
+  // Atomic because CP5 runs one of these per thread and a SHUTDOWN arriving on
+  // any of them stops all the others. The loops notice within one epoll_wait
+  // timeout; a plain bool here is a data race TSan will (correctly) flag.
+  std::atomic<bool> stop_requested_{false};
+
+  int epfd_ = -1;
+  std::unordered_map<int, std::unique_ptr<Connection>> conns_;
+  std::unordered_map<int, uint32_t> interest_;  // avoids redundant epoll_ctl
+  std::vector<Tick> tick_state_;
+  std::string scratch_;  // recv landing buffer, reused across events
+  // fds closed during the current epoll_wait batch: a later event in the same
+  // batch may still name one, and by then the number could belong to a fresh
+  // accept. Skip those events rather than touching the wrong connection.
+  std::vector<int> closed_this_batch_;
   // ==== END CHECKPOINT 2 ====
 };
 
