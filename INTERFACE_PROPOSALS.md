@@ -1,5 +1,12 @@
 # Interface Proposals
 
+> **Disposition after the CP1–CP5 completion session (2026-07-24):** all three
+> proposals were **left unadopted**, and every frozen signature survived the
+> checkpoints unchanged. Verdicts are recorded under each entry. The short
+> version: P1's problem turned out to be real but relocated rather than
+> removed, and P2/P3 were performance nits on cold paths that did not earn an
+> interface change.
+
 Per the rules of engagement, interfaces frozen at M0 are not changed by
 scaffolding work. Where the frozen surface forced a workaround, the proposal
 lives here for the human to accept or reject (typically while implementing the
@@ -24,6 +31,15 @@ snapshot restore.
 **If rejected.** Keep the seam; when resolving DECISION-3, update `now_ms()`
 and the CP3 internals together, and document the pairing in DECISIONS.md.
 
+**Verdict: REJECTED — kept the seam.** DECISION-3 resolved to the wall clock,
+so `now_ms()` in commands.cpp stayed as written and the pairing is documented.
+More interestingly, the proposal would not have solved the real problem. The
+thing that actually bites is not *which* clock reads "now", it is that a
+relative expiry must never be re-evaluated at replay time — and that is fixed
+in CP4 (rewriting `EX`/`EXPIRE` into absolute `PEXPIREAT` before logging), not
+by moving the conversion inside CP3. `set_expiry_in` would have hidden the
+clock read without making replay any more deterministic.
+
 ---
 
 ## P2 — `ExpiryManager::clear()`
@@ -38,6 +54,12 @@ allocation of all key names, on a command whose whole point is bulk teardown.
 **If rejected.** The workaround is correct, just wasteful; fine for a
 non-hot-path command.
 
+**Verdict: REJECTED — workaround kept.** FLUSHALL is not on any hot path, and
+CP3's container (a dense slot vector + index map) would make `clear()` a
+two-line `O(1)` truncation — which is precisely why it can wait until something
+actually needs it. Adding a method to the frozen surface to save an allocation
+on a command nobody issues in a loop is the wrong trade.
+
 ---
 
 ## P3 — TTL iteration for snapshotting
@@ -50,6 +72,11 @@ sampling.
 
 **Proposal (weak).** `void for_each_ttl(fn(key, at_ms))` if CP3's container
 makes iteration natural. Not urgent; adopt only if P1/P2 are being done anyway.
+
+**Verdict: REJECTED — assumption held.** CP3 backs TTLs with an
+`unordered_map<string, size_t>` index into a dense vector, so `expiry_at()` is
+`O(1)` exactly as the current snapshot path assumes. The proposal was
+conditional on that assumption breaking; it didn't.
 
 ---
 
