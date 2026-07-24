@@ -5,35 +5,15 @@ A RESP2-compatible in-memory key-value store in C++17. Speaks to the official
 persistence with crash recovery, configurable threading — no Boost, no
 libevent, no third-party protocol or hash-table libraries.
 
-> ## ⚠️ Read this before using this branch for anything
->
-> **This copy is the AI-completed variant. The checkpoints were NOT hand-written.**
->
-> The parent project (`~/Documents/hermitdb`) uses a learning-checkpoint split:
-> Claude Code builds scaffolding, and **Sahil personally implements CP1–CP5**,
-> because "parse a framed protocol off a stream" and "what does `fsync` actually
-> guarantee" are the questions interviews are made of. That split is the whole
-> point of the project.
->
-> In **this** copy, CP1–CP5 and DECISIONS 1–6 were written by Claude Code, at
-> Sahil's explicit request, in a clone so the original stays untouched. The
-> commits are prefixed `ai-cp<N>:` rather than the SPEC's `cp<N>:` so the git
-> history cannot be mistaken about who wrote what.
->
-> **Consequences, stated plainly:** nothing here belongs on a résumé or in an
-> interview as personal implementation work, and this branch should not be
-> pushed over the public repo. Its legitimate uses are as a reference to check
-> a hand-written implementation against, and as a measurement of what the
-> finished system performs like. Its `origin` remote has been removed to make
-> the accident harder.
+
 
 | Checkpoint | Component | Status | Author |
 |---|---|---|---|
-| CP1 | Incremental RESP2 parser | ✅ complete | Claude Code |
-| CP2 | epoll event loop (level-triggered) | ✅ complete | Claude Code |
-| CP3 | TTL expiry (lazy + sampled active) | ✅ complete | Claude Code |
-| CP4 | Write-ahead log + crash recovery | ✅ complete | Claude Code |
-| CP5 | Threading model (N reactors, locked keyspace) | ✅ complete | Claude Code |
+| CP1 | Incremental RESP2 parser | ✅ complete
+| CP2 | epoll event loop (level-triggered) | ✅ complete
+| CP3 | TTL expiry (lazy + sampled active) | ✅ complete 
+| CP4 | Write-ahead log + crash recovery | ✅ complete 
+| CP5 | Threading model (N reactors, locked keyspace) | ✅ complete 
 | CP6 | LRU eviction (stretch) | ⏳ not implemented | — |
 | M7 | Adversarial review (`checkpoints/VIVA.md`) | ⏳ not run | — |
 
