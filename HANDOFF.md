@@ -1,3 +1,68 @@
+# HANDOFF — session 3 (AI completion of CP1–CP5, in a CLONE)
+
+Session date: 2026-07-24. Repo: `~/Documents/hermitdb-complete` — a **copy**.
+The original `~/Documents/hermitdb` was not touched; verify with
+`git -C ~/Documents/hermitdb status` (clean) and `git -C ~/Documents/hermitdb
+log --oneline -1` (still `6639ba5`).
+
+**This session did the thing SPEC §0.1 forbids**, at Sahil's explicit request
+and in a clone so the original learning path survives. Every checkpoint region
+and all six decisions were implemented by Claude Code. Commits are prefixed
+`ai-cp<N>:` — never `cp<N>:`, which SPEC §0.6 reserves for hand-written work —
+so `git log` cannot misrepresent authorship. The `origin` remote was removed
+(restore with `git remote add origin git@github.com:iamSahilNain/hermitdb.git`)
+so this cannot be pushed over the public repo by accident.
+
+## What was built
+
+| CP | File(s) | Approach |
+|---|---|---|
+| CP1 | `protocol/resp_parser.{h,cpp}` | 3-state machine over a retained buffer; binary-safe bulk framing; caps checked before allocation |
+| CP2 | `net/event_loop.{h,cpp}` | Level-triggered epoll (DECISION-1); accept/recv drain to EAGAIN; EPOLLOUT parking for short writes; 1 MiB/event fairness cap |
+| CP3 | `core/expiry.{h,cpp}` | Wall-clock deadlines (DECISION-3); dense slot vector + index map for O(1) uniform sampling; 20/round, >25% repeat, µs budget |
+| CP4 | `persist/wal.{h,cpp}`, dispatcher + `main.cpp` wiring | Append+fsync after mutation, before reply; torn tail tolerated via re-encode-to-find-offset; rewrite = temp→fsync→rename→dir-fsync→truncate |
+| CP5 | `core/shard.{h,cpp}` | N full reactors, one shared listener, single keyspace lock (DECISION-4) |
+
+Supporting changes: `PEXPIREAT` added to the command table (relative expiries
+are rewritten to absolute before logging — otherwise replay extends every TTL
+by the downtime); `stop_requested_` made atomic; `Threads::Threads` linked;
+`HERMIT_EXTRA_ARGS` added to the integration harness so the whole suite can be
+re-run against `--threads=N`.
+
+## Verification actually performed
+
+- `ctest`: **15/15 green** (was 4 pass / 1 skip / 10 fail-by-design).
+- Whole integration suite re-run at `--threads=2`, `4`, `8` — all green,
+  including `test_incr_concurrency` (16×500 INCRs == exactly 8000).
+- **ThreadSanitizer: 0 warnings** at `--threads=8` across the concurrency,
+  pipelining, Tier-1 and slow-reader suites, plus a `redis-benchmark` run and a
+  32-thread write stress.
+- SPEC §1 definition of done, end to end: runtime image boots → official
+  `redis-cli` SET/GET/RPUSH/LRANGE/TTL → `docker kill --signal=KILL` → restart
+  from the same volume → state recovered, and `TTL` read **590 not 600**,
+  proving the PEXPIREAT translation (a naive implementation resets it).
+- Benchmark matrix via `bench/run_bench.sh` at the SPEC §7 `N_REQUESTS=1000000`.
+
+## Caveats that limit these numbers
+
+- Measured inside Docker Desktop on macOS. `bench/results/FORMAT.md` warns that
+  fsync there crosses virtiofs — measured **372.6 µs/fsync**, which describes
+  the virtualization layer, not an SSD. The `--fsync=always` rows are therefore
+  a pessimistic bound, not a disk spec. The real-Redis baseline runs in the
+  same VM, so ratios are fair even where absolutes are not.
+- M7 (adversarial viva) was **not run**: it interrogates a human about code
+  they wrote, and is meaningless against generated code. `checkpoints/VIVA.md`
+  does not exist rather than existing and being fake.
+- CP6 (LRU eviction / `maxmemory`) not implemented; the keyspace is unbounded.
+
+## What this copy is for
+
+A reference to diff a hand-written implementation against, and a preview of
+what the finished system measures like. It is **not** résumé evidence: the
+public repo still shows stubs, and nothing here was hand-written.
+
+---
+
 # HANDOFF — scaffolding session 2 (M3 + Tier 2 + snapshot + bench verify)
 
 Session date: 2026-07-17. Base: M0 (`ef83839`), head: this commit.
