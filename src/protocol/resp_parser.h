@@ -59,10 +59,30 @@ class RespParser {
 
  private:
   // ==== CHECKPOINT 1: YOUR CODE ====
-  // Your incremental state lives here: buffered bytes, cursor, the partially
-  // decoded frame (declared argc, args collected so far, expected bulk
-  // length, ...) — whatever your design needs.
+  // A three-state machine, not recursive descent: recursion would need the
+  // whole frame resident to unwind, and the whole point is that we never have
+  // the whole frame. Each state consumes what it can and returns; the residue
+  // stays in buf_ for the next feed().
+  enum class State {
+    kLine,       // between frames: expecting "*<n>" or an inline command line
+    kBulkHead,   // inside an array: expecting "$<len>"
+    kBulkBody,   // expecting <len> payload bytes + CRLF
+  };
+
+  // Consumes one CRLF-terminated line at cursor_ (the trailing \r is stripped).
+  // Returns false when no complete line is buffered yet.
+  bool take_line(std::string_view& line);
+  // Splits an inline command on whitespace. Empty line => no command.
+  static void split_inline(std::string_view line, std::vector<std::string>& out);
+
   std::size_t max_frame_bytes_;
+
+  std::string buf_;          // unconsumed bytes, oldest first
+  std::size_t cursor_ = 0;   // parse position within buf_
+  State state_ = State::kLine;
+  int64_t pending_argc_ = 0;     // args still owed by the current array frame
+  int64_t bulk_len_ = 0;         // payload length awaited in kBulkBody
+  std::vector<std::string> args_;  // args decoded so far for the current frame
   // ==== END CHECKPOINT 1 ====
 };
 
