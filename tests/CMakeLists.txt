@@ -1,11 +1,12 @@
 # Label scheme (drives CI and the Makefile):
 #   scaffold  — Claude-Code-owned plumbing; must ALWAYS be green.
-#   checkpoint;cpN — fail until the human implements checkpoint N (by design).
+#   checkpoint;cpN — component acceptance suites; all are required.
 #   m3 — integration tests for the Tier 1 command set (green after M3).
 
 include(FetchContent)
 FetchContent_Declare(
   catch2
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE
   URL https://github.com/catchorg/Catch2/archive/refs/tags/v3.5.4.tar.gz
 )
 FetchContent_MakeAvailable(catch2)
@@ -37,7 +38,7 @@ target_link_libraries(m3_snapshot_tests PRIVATE hermit_core Catch2::Catch2WithMa
 add_test(NAME m3_snapshot_tests COMMAND m3_snapshot_tests)
 set_tests_properties(m3_snapshot_tests PROPERTIES LABELS "m3")
 
-# Complete serializer + CP3-stub expiry: fails until CP3 lands. Informational.
+# Serializer and expiry round-trip coverage.
 add_executable(post_cp3_snapshot_ttl_tests unit/post_cp3_snapshot_ttl_test.cpp)
 target_link_libraries(post_cp3_snapshot_ttl_tests PRIVATE hermit_core Catch2::Catch2WithMain)
 add_test(NAME post_cp3_snapshot_ttl_tests COMMAND post_cp3_snapshot_ttl_tests)
@@ -71,11 +72,15 @@ if(Python3_FOUND)
   hermit_integration_test(integration_ping        test_ping.py              "checkpoint;cp2")
   hermit_integration_test(integration_concurrency test_pipeline_clients.py  "checkpoint;cp2")
   hermit_integration_test(integration_slow_reader test_slow_reader.py       "checkpoint;cp2")
-  # Built now, skipped (exit 77) until CP2 provides a running server; the
-  # command set itself is covered by the m3 unit tests without sockets.
+  # Socket command coverage complements the dispatcher unit tests.
   hermit_integration_test(integration_tier1       test_tier1.py             "post-cp2")
   set_tests_properties(integration_tier1 PROPERTIES SKIP_RETURN_CODE 77)
   hermit_integration_test(integration_ttl         test_ttl.py               "checkpoint;cp3")
   hermit_integration_test(integration_kill9       test_kill9_recovery.py    "checkpoint;cp4")
   hermit_integration_test(integration_incr        test_incr_concurrency.py  "checkpoint;cp5")
 endif()
+
+add_executable(wal_failure_tests unit/wal_failure_test.cpp)
+target_link_libraries(wal_failure_tests PRIVATE hermit_core Catch2::Catch2WithMain)
+add_test(NAME wal_failure_tests COMMAND wal_failure_tests)
+set_tests_properties(wal_failure_tests PROPERTIES LABELS "checkpoint;cp4")

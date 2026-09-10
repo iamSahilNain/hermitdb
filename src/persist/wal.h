@@ -7,7 +7,7 @@
 
 namespace hermit::persist {
 
-// DECISION-2 pending: the DEFAULT policy is unresolved — config refuses to
+// No implicit durability policy: config refuses to
 // pick one silently ("--wal requires an explicit --fsync=...").
 enum class FsyncPolicy { kAlways, kEverySec, kNo };
 
@@ -35,11 +35,8 @@ enum class WalStatus {
 //    A TORN FINAL RECORD (crash mid-append) is NOT corruption: stop there,
 //    truncate the tail, return kOk. Damage before the final record is
 //    kCorrupt.
-//  - rewrite(write_snapshot): compaction. write_snapshot(tmp_path) writes a
-//    full snapshot to tmp_path (Claude Code's serializer, persist/snapshot).
-//    YOU own ordering + atomicity: temp file, fsync it, rename() over the
-//    real snapshot, fsync the DIRECTORY, then truncate the WAL. Document the
-//    crash window at every step.
+//  - rewrite: currently unavailable (kNotImplemented), with no file changes.
+//    Compaction requires a snapshot/WAL recovery boundary before it is safe.
 //  - Boot sequence (wired in main() at M5): load snapshot, then replay WAL
 //    tail on top.
 // ============================================================================

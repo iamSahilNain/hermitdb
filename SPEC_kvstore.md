@@ -1,3 +1,5 @@
+> Historical learning/provenance document. Current behavior and verification are described in README.md and docs/verification.md.
+
 # SPEC — `hermitdb`: RESP-Compatible In-Memory Key-Value Store in C++
 
 **Handoff document for Claude Code.** Read this entire file before writing any code.

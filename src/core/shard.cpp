@@ -30,14 +30,17 @@ ShardStatus ShardedServer::start_and_run() {
   CommandDispatcher dispatcher(db, expiry, clock);
 
   // The one lock. Everything that touches the keyspace, the TTL table, or the
-  // WAL takes it; everything else (I/O, parsing, encoding) stays outside.
+  // WAL takes it, including command reply encoding and synchronous WAL I/O.
+  // Socket I/O and parsing stay outside.
   std::mutex keyspace_mu;
 
   std::unique_ptr<persist::Wal> wal;
   persist::Wal* logging_wal = nullptr;
-  expiry.set_evict_hook([&db, &logging_wal](const std::string& key) {
+  expiry.set_evict_hook([&db, &logging_wal, &dispatcher](const std::string& key) {
     db.del(key);
-    if (logging_wal != nullptr) logging_wal->append({"DEL", key});
+    if (logging_wal != nullptr && !dispatcher.persistence_failed() &&
+        logging_wal->append({"DEL", key}) != persist::WalStatus::kOk)
+      dispatcher.report_persistence_failure();
   });
 
   // NOTE: this recovery sequence mirrors main.cpp's single-threaded path.
@@ -99,10 +102,13 @@ ShardStatus ShardedServer::start_and_run() {
     // single extra key.
     if (i == 0) {
       lp->add_tick(
-          [&keyspace_mu, &expiry, &wal, &clock] {
+          [&keyspace_mu, &expiry, &wal, &clock, &dispatcher, &stop_all] {
             std::lock_guard<std::mutex> guard(keyspace_mu);
             expiry.active_cycle(/*budget_us=*/1000);
-            if (wal) wal->tick_fsync(clock.wall_ms());
+            if (wal && !dispatcher.persistence_failed() &&
+                wal->tick_fsync(clock.wall_ms()) != persist::WalStatus::kOk)
+              dispatcher.report_persistence_failure();
+            if (dispatcher.persistence_failed()) stop_all();
           },
           /*interval_ms=*/100);
     }
@@ -126,7 +132,10 @@ ShardStatus ShardedServer::start_and_run() {
   stop_all();
   for (auto& t : workers) t.join();
 
-  return fatal.load() ? ShardStatus::kFatalError : ShardStatus::kStopped;
+  if (dispatcher.persistence_failed())
+    logging::error("persistence failed; stopped to prevent unsafe acknowledgments");
+  return (fatal.load() || dispatcher.persistence_failed())
+             ? ShardStatus::kFatalError : ShardStatus::kStopped;
   // ==== END CHECKPOINT 5 ====
 }
 

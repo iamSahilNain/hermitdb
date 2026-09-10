@@ -7,6 +7,7 @@ end-to-end with zero dependencies.
 import os
 import random
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -37,6 +38,7 @@ class Server:
         # tests, but with --threads=N". Used by `make test-threaded`.
         self.args += os.environ.get("HERMIT_EXTRA_ARGS", "").split()
         self.proc = None
+        self._expected_signals = set()
 
     def __enter__(self):
         if self.proc is None:
@@ -62,18 +64,37 @@ class Server:
         raise RuntimeError("server did not start listening within 10s")
 
     def kill9(self):
+        self._expected_signals.add(-signal.SIGKILL)
         self.proc.kill()  # SIGKILL: the crash-recovery scenario
         self.proc.wait()
 
     def __exit__(self, *exc):
-        if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
-            try:
-                self.proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.proc.kill()
-        if self._owns_data_dir:
-            shutil.rmtree(self.data_dir, ignore_errors=True)
+        try:
+            if self.proc:
+                if self.proc.poll() is None:
+                    self._expected_signals.add(-signal.SIGTERM)
+                    self.proc.terminate()
+                    try:
+                        self.proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        self._expected_signals.add(-signal.SIGKILL)
+                        self.proc.kill()
+                out, err = self.proc.communicate(timeout=5)
+                diagnostics = err.decode(errors="replace")
+                # Some sanitizer reports arrive after the final socket reply.
+                # Inspect stderr even when teardown intentionally stops a server.
+                sanitizer_report = "ThreadSanitizer" in diagnostics
+                unexpected_exit = (
+                    self.proc.returncode != 0
+                    and self.proc.returncode not in self._expected_signals)
+                if sanitizer_report or unexpected_exit:
+                    raise RuntimeError(
+                        f"server failed rc={self.proc.returncode}\n"
+                        f"stdout: {out.decode(errors='replace')}\n"
+                        f"stderr: {diagnostics}")
+        finally:
+            if self._owns_data_dir:
+                shutil.rmtree(self.data_dir, ignore_errors=True)
         return False
 
 
