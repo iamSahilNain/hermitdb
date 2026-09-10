@@ -1,3 +1,5 @@
+> Historical learning/provenance document. Current behavior and verification are described in README.md and docs/verification.md.
+
 # HANDOFF — session 3 (AI completion of CP1–CP5, in a CLONE)
 
 Session date: 2026-07-24. Repo: `~/Documents/hermitdb-complete` — a **copy**.

@@ -17,11 +17,10 @@ configure:
 build: 	          ## incremental build inside the container
 	$(DOCKER_RUN) cmake --build build -j
 
-test: build       ## scaffold + m3 tests — these must always be green
-	$(DOCKER_RUN) ctest --test-dir build -L 'scaffold|m3' --output-on-failure
-
-test-all: build   ## everything, incl. checkpoint tests (red until you implement them)
+test: build       ## all unit and integration tests are required
 	$(DOCKER_RUN) ctest --test-dir build --output-on-failure
+
+test-all: test    ## compatibility alias for the complete required suite
 
 run: build        ## run the server on localhost:6380
 	docker run --rm -it -p 6380:6380 -v "$(PWD)":/work -w /work $(IMG) ./build/hermitdb --port=6380

@@ -48,18 +48,20 @@ int main(int argc, char** argv) {
   core::Db db;
   core::ExpiryManager expiry(db, clock);
 
+  core::CommandDispatcher dispatcher(db, expiry, clock);
+
   std::unique_ptr<persist::Wal> wal;
   // Stays null until recovery finishes: replaying the log must not append to
   // it. Flipping this on afterwards is what arms eviction logging.
   persist::Wal* logging_wal = nullptr;
-  expiry.set_evict_hook([&db, &logging_wal](const std::string& key) {
+  expiry.set_evict_hook([&db, &logging_wal, &dispatcher](const std::string& key) {
     db.del(key);
     // The CP3<->CP4 contract: an expiry is a real mutation, and replay must
     // not re-derive it against a later clock. Log it as an explicit DEL.
-    if (logging_wal != nullptr) logging_wal->append({"DEL", key});
+    if (logging_wal != nullptr && !dispatcher.persistence_failed() &&
+        logging_wal->append({"DEL", key}) != persist::WalStatus::kOk)
+      dispatcher.report_persistence_failure();
   });
-
-  core::CommandDispatcher dispatcher(db, expiry, clock);
 
   if (cfg.wal_enabled) {
     std::error_code ec;
@@ -119,15 +121,20 @@ int main(int argc, char** argv) {
     if (dispatcher.shutdown_requested()) loop.stop();
     return reply;
   });
-  loop.add_tick([&expiry] { expiry.active_cycle(/*budget_us=*/1000); }, /*interval_ms=*/100);
-  if (wal) {
-    // --fsync=everysec rides the same tick — no extra thread, which is the
-    // whole reason the reactor owns a timer at all.
-    loop.add_tick([&wal, &clock] { wal->tick_fsync(clock.wall_ms()); }, /*interval_ms=*/100);
-  }
+  loop.add_tick([&] {
+    expiry.active_cycle(/*budget_us=*/1000);
+    if (wal && !dispatcher.persistence_failed() &&
+        wal->tick_fsync(clock.wall_ms()) != persist::WalStatus::kOk)
+      dispatcher.report_persistence_failure();
+    if (dispatcher.persistence_failed()) loop.stop();
+  }, /*interval_ms=*/100);
 
   switch (loop.run()) {
     case net::LoopStatus::kStopped:
+      if (dispatcher.persistence_failed()) {
+        logging::error("persistence failed; stopped to prevent unsafe acknowledgments");
+        return 1;
+      }
       logging::info("clean shutdown");
       return 0;
     case net::LoopStatus::kNotImplemented:

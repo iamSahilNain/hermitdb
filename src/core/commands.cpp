@@ -381,7 +381,10 @@ void CommandDispatcher::log_mutation(const std::string& name, const protocol::Co
   // An error reply means nothing changed, so nothing is owed to the log.
   if (reply.empty() || reply[0] == '-') return;
 
-  const auto put = [this](protocol::Command record) { wal_->append(record); };
+  const auto put = [this](protocol::Command record) {
+    if (!persistence_failed_ && wal_->append(record) != persist::WalStatus::kOk)
+      report_persistence_failure();
+  };
 
   if (name == "SET") {
     // "+OK" is the only reply that means a write landed; NX/XX declining
@@ -427,6 +430,8 @@ void CommandDispatcher::log_mutation(const std::string& name, const protocol::Co
 }
 
 std::string CommandDispatcher::execute(const protocol::Command& cmd) {
+  if (persistence_failed_)
+    return resp::error("MISCONF persistence failed; restart required");
   if (cmd.empty()) return resp::error("ERR empty command");
   const std::string name = upper(cmd[0]);
 
@@ -444,7 +449,9 @@ std::string CommandDispatcher::execute(const protocol::Command& cmd) {
 
   // CP4 ordering: the record (and its fsync, under --fsync=always) lands here
   // — after the mutation, before the caller can hand the reply to the client.
-  if (wal_ != nullptr) log_mutation(name, cmd, reply);
+  if (wal_ != nullptr && !persistence_failed_) log_mutation(name, cmd, reply);
+  if (persistence_failed_)
+    return resp::error("MISCONF persistence failed; restart required");
   return reply;
 }
 

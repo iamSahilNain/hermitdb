@@ -4,30 +4,33 @@ on: [push, pull_request]
 jobs:
   build-test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        threads: [1, 2, 4, 8]
+    env:
+      HERMIT_EXTRA_ARGS: --threads=${{ matrix.threads }}
     steps:
       - uses: actions/checkout@v4
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
       - name: Build (-Wall -Wextra -Werror)
         run: cmake --build build -j
-      - name: Scaffold + M3 tests (required)
-        run: ctest --test-dir build -L "scaffold|m3" --output-on-failure
-      # checkpoint-labeled tests are EXPECTED to fail until the corresponding
-      # CP is hand-implemented (SPEC §0.3); post-cp2 tests skip themselves
-      # while the event loop is a stub; post-cp3 fails until expiry stores
-      # state. All informational — never blocks CI.
-      - name: Checkpoint / post-cp tests (informational)
-        run: ctest --test-dir build -LE "scaffold|m3" --output-on-failure || true
+      - name: All unit and integration tests (required)
+        run: ctest --test-dir build --output-on-failure
 
   tsan:
-    # Becomes load-bearing at CP5 (SPEC §5); until then it proves the TSan
-    # build stays healthy.
     runs-on: ubuntu-latest
+    env:
+      HERMIT_EXTRA_ARGS: --threads=4
+      TSAN_OPTIONS: halt_on_error=1:exitcode=66
     steps:
       - uses: actions/checkout@v4
       - name: Configure (TSan)
         run: cmake -S . -B build-tsan -DHERMIT_TSAN=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
       - name: Build
         run: cmake --build build-tsan -j
-      - name: Scaffold + M3 tests under TSan
-        run: ctest --test-dir build-tsan -L "scaffold|m3" --output-on-failure
+      - name: Unit tests under TSan
+        run: ctest --test-dir build-tsan -E '^integration_' --output-on-failure
+      - name: Concurrent socket clients under TSan (four reactor threads)
+        run: ctest --test-dir build-tsan -R '^integration_(concurrency|incr)$' --output-on-failure

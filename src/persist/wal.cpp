@@ -170,63 +170,11 @@ WalStatus Wal::replay(const std::function<void(const protocol::Command&)>& fn) {
 }
 
 WalStatus Wal::rewrite(const std::function<bool(const std::string& tmp_path)>& write_snapshot) {
-  const std::string snap = snapshot_path();
-  const std::string tmp = snap + ".tmp";
-
-  // Step 1: build the new snapshot beside the old one. A crash here loses
-  // nothing — the old snapshot and the full WAL are both still intact.
-  if (!write_snapshot(tmp)) {
-    ::unlink(tmp.c_str());
-    return WalStatus::kIoError;
-  }
-
-  // Step 2: force the snapshot's CONTENTS to disk before anything points at
-  // it. Skipping this is the classic bug: rename() is atomic w.r.t. the
-  // directory entry, which says nothing about the data blocks having landed.
-  {
-    const int sfd = ::open(tmp.c_str(), O_RDONLY | O_CLOEXEC);
-    if (sfd < 0 || ::fsync(sfd) != 0) {
-      if (sfd >= 0) ::close(sfd);
-      ::unlink(tmp.c_str());
-      return WalStatus::kIoError;
-    }
-    ::close(sfd);
-  }
-
-  // Step 3: rename() is the atomic primitive — the snapshot name points at
-  // either the whole old file or the whole new one, never a mixture.
-  if (::rename(tmp.c_str(), snap.c_str()) != 0) {
-    logging::error("snapshot rename failed: %s", std::strerror(errno));
-    ::unlink(tmp.c_str());
-    return WalStatus::kIoError;
-  }
-
-  // Step 4: the rename itself is metadata, and metadata is buffered too.
-  // Without this fsync a crash can resurrect the old directory entry while
-  // the WAL has already been truncated — losing everything in between.
-  {
-    const std::string d = dir();
-    const int dfd = ::open(d.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
-    if (dfd >= 0) {
-      ::fsync(dfd);
-      ::close(dfd);
-    }
-  }
-
-  // Step 5: only now may the log go. Everything it described is durable in
-  // the snapshot. A crash before this point simply replays a WAL whose
-  // effects the snapshot already contains — replay is idempotent, so that is
-  // harmless; a crash after it has nothing left to lose.
-  if (fd_ >= 0) {
-    if (::ftruncate(fd_, 0) != 0) {
-      logging::error("wal truncate failed: %s", std::strerror(errno));
-      return WalStatus::kIoError;
-    }
-    dirty_ = true;
-    return fsync_now();
-  }
-  if (::truncate(opts_.path.c_str(), 0) != 0 && errno != ENOENT) return WalStatus::kIoError;
-  return WalStatus::kOk;
+  // A snapshot and WAL need a shared recovery boundary. Renaming the new
+  // snapshot before truncating the old WAL can replay INCR/LPUSH twice.
+  // Refuse compaction without touching either file until that format exists.
+  (void)write_snapshot;
+  return WalStatus::kNotImplemented;
 }
 
 // ==== END CHECKPOINT 4 ====

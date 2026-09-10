@@ -30,6 +30,11 @@ class CommandDispatcher {
   // Set by SHUTDOWN; the event loop polls this after each command.
   bool shutdown_requested() const { return shutdown_; }
 
+  // Callers serialize this with execute() using the shared keyspace lock.
+  // Memory may already have changed; stop serving until recovery from disk.
+  void report_persistence_failure() { persistence_failed_ = true; shutdown_ = true; }
+  bool persistence_failed() const { return persistence_failed_; }
+
  private:
   // CP4: appends the durable form of a command that actually mutated state.
   // Called post-execution, pre-reply — see the ordering note in persist/wal.h.
@@ -41,6 +46,7 @@ class CommandDispatcher {
   const Clock& clock_;
   persist::Wal* wal_ = nullptr;
   bool shutdown_ = false;
+  bool persistence_failed_ = false;
 };
 
 }  // namespace hermit::core

@@ -1,5 +1,4 @@
-// CHECKPOINT 4 acceptance suite (unit tier). FAILS until persist/wal.cpp is
-// implemented. The crash-consistency kill -9 harness lives in
+// WAL acceptance suite (unit tier). The process-crash harness lives in
 // tests/integration/test_kill9_recovery.py.
 //   ctest --test-dir build -L cp4 --output-on-failure
 
@@ -131,26 +130,19 @@ TEST_CASE("cp4: appends after recovery continue the log") {
   CHECK(replayed == std::vector<Command>{{"SET", "a", "1"}, {"SET", "b", "2"}});
 }
 
-TEST_CASE("cp4: rewrite compacts — snapshot written atomically, wal truncated") {
+TEST_CASE("cp4: unsafe compaction is refused without changing the WAL") {
   TmpDir tmp;
   Wal wal({tmp.wal(), FsyncPolicy::kAlways});
   REQUIRE(wal.open_for_append() == WalStatus::kOk);
-  for (int i = 0; i < 100; ++i)
-    REQUIRE(wal.append({"SET", "k" + std::to_string(i), "v"}) == WalStatus::kOk);
-
-  bool snapshot_written = false;
-  REQUIRE(wal.rewrite([&](const std::string& tmp_path) {
-            // Claude Code's snapshot serializer stands in here; CP4 owns the
-            // ordering/atomicity around this call, not its contents.
-            std::ofstream f(tmp_path, std::ios::binary);
-            f << "FAKE-SNAPSHOT";
-            snapshot_written = true;
-            return f.good();
-          }) == WalStatus::kOk);
-  CHECK(snapshot_written);
-
-  WalStatus st{};
-  auto replayed = replay_all(wal, st);
-  REQUIRE(st == WalStatus::kOk);
-  CHECK(replayed.empty());  // log was truncated; state now lives in the snapshot
+  REQUIRE(wal.append({"INCR", "counter"}) == WalStatus::kOk);
+  bool callback_called = false;
+  CHECK(wal.rewrite([&](const std::string&) {
+    callback_called = true;
+    return true;
+  }) == WalStatus::kNotImplemented);
+  CHECK_FALSE(callback_called);
+  CHECK_FALSE(std::filesystem::exists(tmp.path / "snapshot.hdb"));
+  WalStatus status{};
+  CHECK(replay_all(wal, status) == std::vector<Command>{{"INCR", "counter"}});
+  CHECK(status == WalStatus::kOk);
 }
