@@ -1,71 +1,87 @@
 # HermitDB
 
-A C++17 in-memory key-value server with a RESP2 command subset, Linux epoll,
-TTL expiry, and append-only persistence. It works with Redis protocol clients;
-it is a learning project, not a drop-in replacement for Redis.
+**An in-memory key-value server in C++17, built on Linux sockets and epoll.**
 
-## Implementation and attribution
+HermitDB speaks a subset of Redis's RESP2 protocol: connect with `redis-cli`,
+store strings and lists, set expiration times, and recover persisted writes
+from an append-only log. The networking and storage code uses the C++ standard
+library and Linux APIs, without Boost or an external event-loop framework.
 
-Claude Code generated the initial scaffolding and CP1–CP5 implementations.
-This revision also includes AI-assisted review and repairs. The original
-`scaffold:` and `ai-cp` commits remain in history. The repository does not claim
-that these components were handwritten. Original learning materials remain in
-[SPEC_kvstore.md](SPEC_kvstore.md), [HANDOFF.md](HANDOFF.md), and
-[checkpoints/](checkpoints/).
+[Design notes](DECISIONS.md) · [Test results](docs/verification.md) · [Source](src/)
 
-## Run
+## Try it
+
+Build and start the server:
 
 ```sh
 docker build -t hermitdb .
 docker run --rm -p 6380:6380 hermitdb
-redis-cli -p 6380 SET greeting hello EX 60
-redis-cli -p 6380 GET greeting
 ```
 
-To retain the WAL across container restarts:
+In another terminal, with Redis CLI installed:
+
+```sh
+redis-cli -p 6380 SET greeting hello EX 60  # OK
+redis-cli -p 6380 GET greeting            # "hello"
+redis-cli -p 6380 RPUSH tasks parse log   # 2
+redis-cli -p 6380 LRANGE tasks 0 -1       # "parse", "log"
+```
+
+For persistence, start the server with a named data volume and an explicit
+sync policy:
 
 ```sh
 docker run --rm -p 6380:6380 -v hermitdata:/data hermitdb \
   --port=6380 --data-dir=/data --wal --fsync=always
 ```
 
-`--wal` requires an explicit policy: `always`, `everysec`, or `no`.
-`always` synchronizes log records before successful replies. `everysec`
-attempts synchronization from an event-loop tick; scheduling and I/O delays
-mean this is not a strict one-second loss bound. `no` relies on OS flushing.
-A process kill is not a power-loss test.
-
-## Commands
-
-| Area | Supported commands |
+| Policy | Behavior |
 |---|---|
-| Connection | PING, ECHO, COMMAND, SHUTDOWN |
-| Strings | SET (EX/PX/NX/XX), GET, INCR, DECR, INCRBY |
-| Keys | DEL, EXISTS, TYPE, KEYS, DBSIZE, FLUSHALL |
-| Expiry | EXPIRE, PEXPIRE, PEXPIREAT, TTL, PTTL, PERSIST |
-| Lists | LPUSH, RPUSH, LPOP, RPOP, LRANGE, LLEN |
-| Configuration | CONFIG GET (stub) |
+| `always` | Synchronize appended records before a successful write reply. |
+| `everysec` | Synchronize on periodic event-loop ticks; delays can extend the interval. |
+| `no` | Append to the OS page cache and leave flushing to the OS. |
 
-## Architecture
+## How it works
 
-Each reactor owns its accepted connections and performs nonblocking reads,
-incremental parsing, and buffered writes. With `--threads=N`, reactors share
-one keyspace. A mutex covers the whole command dispatcher, including reads,
-reply construction, and WAL work. Socket I/O and parsing happen outside it.
-This design prioritizes simple serialization over parallel command execution.
+```mermaid
+flowchart LR
+    Client[Redis client] --> Reactor[epoll reactor]
+    Reactor --> Parser[Incremental RESP2 parser]
+    Parser --> Dispatcher[Command dispatcher]
+    Dispatcher --> Store[Strings and lists]
+    Dispatcher --> WAL[Append-only log]
+    Expiry[Expiry checks] --> Store
+    Expiry --> WAL
+    Dispatcher --> Reply[Buffered reply]
+    Reply --> Client
+```
 
-Expiry combines checks on access with a sampled background pass. The WAL
-stores RESP commands and translates relative expiry into absolute deadlines.
-Startup can load an existing snapshot and replay the log.
+- **Networking:** nonblocking sockets, parsing across partial reads, buffered
+  writes, and a read budget to keep one connection from monopolizing a reactor.
+- **Expiry:** lazy checks on key access plus sampled background expiration.
+  Persisted deadlines are absolute, so restarting does not reset a relative TTL.
+- **Persistence:** RESP-encoded mutations, replay on startup, and truncated-tail
+  recovery. Detected log write or sync failures stop the server from continuing
+  to acknowledge writes. Failed operations are not rolled back in memory.
+- **Threading:** `--threads=N` starts N reactors over one shared keyspace.
+  Parsing and socket I/O run outside the mutex; command execution, reply
+  construction, and WAL work are serialized inside it.
 
-Detected WAL write or sync failures put the dispatcher into a failed state
-and stop serving. The failed operation may already have changed memory; this
-is fail-closed handling, not transactional rollback, and clients may see an
-error or disconnect. Recovery can include an operation whose reply was lost.
+## Supported commands
+
+| Area | Commands |
+|---|---|
+| Connection | `PING`, `ECHO`, `COMMAND`, `SHUTDOWN` |
+| Strings | `SET` (`EX`, `PX`, `NX`, `XX`), `GET`, `INCR`, `DECR`, `INCRBY` |
+| Keys | `DEL`, `EXISTS`, `TYPE`, `KEYS`, `DBSIZE`, `FLUSHALL` |
+| Expiry | `EXPIRE`, `PEXPIRE`, `PEXPIREAT`, `TTL`, `PTTL`, `PERSIST` |
+| Lists | `LPUSH`, `RPUSH`, `LPOP`, `RPOP`, `LRANGE`, `LLEN` |
+
+`CONFIG GET` is a stub. Protocol support is a subset of Redis compatibility.
 
 ## Build and test
 
-Development requires Linux; Docker supplies GCC and epoll on macOS hosts.
+The development container supplies Linux, GCC, CMake, and Redis tools:
 
 ```sh
 make image
@@ -73,32 +89,48 @@ make configure
 make test
 ```
 
-`make test` runs the complete suite. CI also exercises integration tests with
-1, 2, 4, and 8 reactors and runs threaded integration under ThreadSanitizer.
-See [docs/verification.md](docs/verification.md) for checks actually executed
-on this revision and their limits. A workflow definition is not a recorded CI pass.
+The latest local verification used GCC 13.3.0 in a Linux ARM64 container:
 
-## Benchmarks
+| Check | Result |
+|---|---|
+| Full unit and integration suite | 16/16 test groups passed |
+| Integration with 2, 4, and 8 reactors | 7/7 groups passed at each setting |
+| ThreadSanitizer: concurrent clients and INCR, 4 reactors | 2/2 groups passed |
 
-`bench/run_bench.sh` generates a Redis comparison matrix and raw CSV files.
-The old published tables are retained in the
-[historical README](docs/history/README.md); their raw runs were not committed
-and have not been independently reproduced in this repair pass.
+Tests cover fragmented commands, pipelining, slow readers, expiry, WAL failures,
+and process-crash recovery against a shadow model. CI requires the full suite
+at 1, 2, 4, and 8 threads. See the [verification record](docs/verification.md)
+for exact scope; SIGKILL recovery tests do not simulate hardware power loss.
 
-Do not infer a one-million-key workload from one million requests. The current
-script does not run three-trial medians or select a 100-byte payload.
-New performance claims need the exact command,
-keyspace, payload, software versions, machine details, commit, and raw outputs.
+## Benchmarking
 
-## Limitations
+Run the comparison harness inside the development container:
 
-- No authentication, TLS, replication, or per-user isolation. Keep it on a trusted network.
-- No maxmemory or eviction policy. The keyspace can exhaust memory.
-- Snapshot compaction is disabled: the old rename/truncate sequence could
-  replay non-idempotent operations twice after a crash. `Wal::rewrite()` returns
-  `kNotImplemented` without touching files. No runtime command invokes it.
-- WAL records have no checksum. Truncated-tail handling does not detect all corruption.
-- Snapshot loading, TTL replay, filesystem durability, and protocol compatibility
-  have narrower coverage than a production database requires.
+```sh
+make shell
+./bench/run_bench.sh ./build/hermitdb
+```
 
-[Design notes](DECISIONS.md) explain the current trade-offs.
+It compares SET, GET, and INCR against Redis, varies reactor count and WAL
+policy, and tests pipelining at 1 and 16. Each run writes CSV output and a
+Markdown table under `bench/results/`. The default is one million **requests**
+per operation with 50 clients.
+
+Performance has not been remeasured for this revision. Earlier tables are
+[archived](docs/history/README.md#benchmarks); their raw outputs were not committed.
+
+## Current scope
+
+HermitDB is a systems learning project for controlled environments. It has no
+authentication, TLS, replication, memory limit, or eviction policy.
+
+Snapshot loading is supported, but compaction is disabled pending a safe
+snapshot/WAL recovery boundary. WAL records have no checksums.
+[Design notes](DECISIONS.md) cover these trade-offs and remaining work.
+
+## Development
+
+The initial scaffolding and core implementations were generated with Claude
+Code; subsequent review and repairs also used AI assistance. Component-level
+history is preserved in the commits. The [original specification](SPEC_kvstore.md)
+and [checkpoint exercises](checkpoints/) document the learning workflow.
