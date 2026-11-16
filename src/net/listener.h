@@ -1,5 +1,5 @@
 #pragma once
-// Listening socket setup. [Claude Code] — plumbing, not a checkpoint.
+// Listening socket setup.
 // CP2 (the event loop) consumes this: fd() goes into epoll, accept_client()
 // is called when the listener becomes readable.
 
@@ -19,8 +19,8 @@ class Listener {
   Listener& operator=(const Listener&) = delete;
 
   // socket() + SO_REUSEADDR + bind(0.0.0.0:port) + listen(); the listening fd
-  // is nonblocking (mandatory for the CP2 loop — see the accept storm note in
-  // checkpoints/CP2.md). Returns false with a message in *err on failure.
+  // is nonblocking (mandatory for the CP2 loop, which drains accept() to
+  // EAGAIN). Returns false with a message in *err on failure.
   bool open(uint16_t port, int backlog = 511, std::string* err = nullptr);
 
   int fd() const { return fd_; }

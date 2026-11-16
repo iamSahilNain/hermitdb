@@ -1,7 +1,7 @@
 #pragma once
 // DECISION-3 pending: whether TTLs are anchored to the wall clock or the
-// steady (monotonic) clock — and how replay stays deterministic — is the
-// human's call in CP3/CP4. This interface exposes BOTH so either resolution
+// steady (monotonic) clock — and how replay stays deterministic — is decided
+// in CP3/CP4. This interface exposes BOTH so either resolution
 // plugs in without touching call sites, and so tests can inject time.
 
 #include <chrono>

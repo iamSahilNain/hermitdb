@@ -27,7 +27,7 @@ struct ParseResult {
 };
 
 // ============================= CHECKPOINT 1 =================================
-// Incremental RESP2 command parser. Study sheet: checkpoints/CP1.md
+// Incremental RESP2 command parser.
 //
 // CONTRACT
 //  - feed() consumes an arbitrary byte chunk. TCP provides NO message
@@ -58,7 +58,6 @@ class RespParser {
   ParseResult feed(std::string_view bytes);
 
  private:
-  // ==== CHECKPOINT 1: YOUR CODE ====
   // A three-state machine, not recursive descent: recursion would need the
   // whole frame resident to unwind, and the whole point is that we never have
   // the whole frame. Each state consumes what it can and returns; the residue

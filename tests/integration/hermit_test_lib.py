@@ -1,4 +1,4 @@
-"""Shared harness for hermitdb integration tests. [Claude Code]
+"""Shared harness for hermitdb integration tests.
 
 Spawns the real server binary (argv[1] of each test) and talks RESP2 over
 raw sockets — deliberately NOT redis-py, so the tests exercise our framing

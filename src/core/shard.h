@@ -10,7 +10,7 @@ enum class ShardStatus {
 };
 
 // ============================= CHECKPOINT 5 =================================
-// Threading model. Study sheet: checkpoints/CP5.md
+// Threading model.
 //
 // DECISION-4 pending — and this checkpoint's shape depends ENTIRELY on it:
 //   (a) single reactor + worker pool over one locked dict,
@@ -35,9 +35,8 @@ class ShardedServer {
   ShardStatus start_and_run();
 
  private:
-  // ==== CHECKPOINT 5: YOUR CODE ====
   // DECISION-4 resolved: N REACTOR THREADS OVER ONE LOCKED KEYSPACE — option
-  // (a), reshaped. The SPEC's (a) puts one reactor in front of a worker pool;
+  // (a), reshaped. The textbook (a) puts one reactor in front of a worker pool;
   // that hands every command across a queue and pays a wakeup for it. Here
   // each thread owns a full epoll loop and the connections it accepted, so
   // recv, RESP parsing, reply encoding and send — the majority of the work —

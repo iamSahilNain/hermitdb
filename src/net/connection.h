@@ -1,5 +1,5 @@
 #pragma once
-// Per-connection state. [Claude Code] — plumbing, not a checkpoint.
+// Per-connection state.
 // The CP2 event loop owns a map fd -> Connection; it recv()s into a scratch
 // buffer, feeds the parser, and queues replies here.
 

@@ -1,5 +1,5 @@
 #pragma once
-// Command dispatch + argument validation. [Claude Code] — implemented at M3.
+// Command dispatch + argument validation.
 // At M0 only PING/ECHO/COMMAND answer (so redis-cli can connect the moment
 // CP2 works); every other command replies "-ERR ... not implemented".
 

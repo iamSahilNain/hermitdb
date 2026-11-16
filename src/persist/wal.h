@@ -19,7 +19,7 @@ enum class WalStatus {
 };
 
 // ============================= CHECKPOINT 4 =================================
-// Write-ahead log. Study sheet: checkpoints/CP4.md
+// Write-ahead log.
 //
 // CONTRACT
 //  - append(cmd): serialize the mutating command in RESP array encoding
@@ -65,8 +65,7 @@ class Wal {
   static std::string encode(const protocol::Command& cmd);
 
  private:
-  // ==== CHECKPOINT 4: YOUR CODE ====
-  // ORDERING (the trade-off SPEC §5 leaves open): append+fsync happen AFTER
+  // ORDERING (the key trade-off): append+fsync happen AFTER
   // the command mutates memory but BEFORE its reply reaches the client. So
   // under --fsync=always an ACK is a durability promise: the record is on the
   // platter before the client can observe the write. The cost is one flush in

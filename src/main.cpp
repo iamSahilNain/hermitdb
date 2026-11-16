@@ -1,4 +1,4 @@
-// hermitdb entrypoint: flag parsing, wiring, lifecycle. [Claude Code]
+// hermitdb entrypoint: flag parsing, wiring, lifecycle.
 
 #include <csignal>
 #include <cstdio>
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     core::ShardedServer sharded(cfg);
     const core::ShardStatus st = sharded.start_and_run();
     if (st == core::ShardStatus::kNotImplemented) {
-      logging::error("--threads=%u unavailable until CHECKPOINT 5 (checkpoints/CP5.md)",
+      logging::error("--threads=%u unavailable until CHECKPOINT 5",
                      cfg.nthreads);
       return 1;
     }

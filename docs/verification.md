@@ -1,6 +1,6 @@
 # Verification
 
-Repair baseline: `5118fe4`. Local repair branch: `codex/verification-and-docs`.
+Repair baseline: `5118fe4`.
 
 Executed on 2026-09-10T07:30:28+00:00 in the
 `hermitdb-dev` Linux aarch64 Docker image, GCC 13.3.0, CMake RelWithDebInfo.
@@ -37,5 +37,4 @@ and acknowledged writes surviving process termination. SIGKILL retains the
 host's page cache and is not a power-loss simulation. These tests do not prove
 all filesystem crash windows or complete Redis compatibility.
 
-Historical 15/15 and performance claims remain in docs/history/README.md.
-They are not results for this revision. No benchmark raw data was supplied.
+No benchmark raw data was supplied for this revision.

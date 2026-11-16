@@ -1,5 +1,5 @@
 // post-cp3: TTL deadlines must survive a snapshot round-trip. The snapshot
-// serializer (Claude Code) is complete; this FAILS until CHECKPOINT 3 makes
+// serializer is complete; this FAILS until CHECKPOINT 3 makes
 // ExpiryManager actually store deadlines. Informational in CI until then.
 
 #include <catch2/catch_test_macros.hpp>

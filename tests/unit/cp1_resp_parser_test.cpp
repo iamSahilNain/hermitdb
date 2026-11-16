@@ -1,5 +1,4 @@
-// CHECKPOINT 1 acceptance suite. Written by Claude Code; FAILS until the
-// human implements protocol/resp_parser.cpp. Run:
+// CHECKPOINT 1 acceptance suite for protocol/resp_parser.cpp. Run:
 //   ctest --test-dir build -L cp1 --output-on-failure
 
 #include "protocol/resp_parser.h"

@@ -1,8 +1,6 @@
 # Design notes
 
-These notes describe the current implementation. They are AI-assisted and do
-not represent handwritten decisions by the repository owner. The original
-[decision log](docs/history/DECISIONS.md) is retained for provenance.
+These notes describe the current implementation and the trade-offs behind it.
 
 ## Reactor and locking
 

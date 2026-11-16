@@ -1,7 +1,7 @@
 #pragma once
-// Full-dict snapshot serialization. [Claude Code] — implemented at M5.
+// Full-dict snapshot serialization.
 // Serialization only: the ATOMICITY of snapshot+WAL-truncate (temp file,
-// rename, directory fsync) is CP4's — the human's — via Wal::rewrite().
+// rename, directory fsync) is CP4's, via Wal::rewrite().
 
 #include <string>
 

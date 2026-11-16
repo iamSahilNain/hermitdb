@@ -1,5 +1,5 @@
 # Label scheme (drives CI and the Makefile):
-#   scaffold  — Claude-Code-owned plumbing; must ALWAYS be green.
+#   scaffold  — core plumbing; must ALWAYS be green.
 #   checkpoint;cpN — component acceptance suites; all are required.
 #   m3 — integration tests for the Tier 1 command set (green after M3).
 

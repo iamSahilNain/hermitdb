@@ -16,7 +16,7 @@ namespace {
 using protocol::Command;
 
 // Everything a handler may touch. WAL is deliberately absent: WHERE the
-// append happens relative to the reply is CP4's trade-off to place (SPEC §5),
+// append happens relative to the reply is CP4's trade-off to place,
 // so no call site is pre-wired here.
 struct Ctx {
   Db& db;
@@ -337,11 +337,11 @@ std::string cmd_echo(Ctx&, const Command& cmd) {
 }
 
 std::string cmd_command(Ctx&, const Command&) {
-  return resp::empty_array();  // stub ok per SPEC §3 (redis-cli sends it on connect)
+  return resp::empty_array();  // stub: redis-cli sends it on connect
 }
 
 std::string cmd_config(Ctx&, const Command& cmd) {
-  // Stub ok per SPEC §3 — just enough for redis-benchmark/redis-cli probes.
+  // Stub: just enough for redis-benchmark/redis-cli probes.
   if (cmd.size() >= 2 && upper(cmd[1]) == "GET") {
     if (cmd.size() != 3) return wrong_arity("config|get");
     static const std::unordered_map<std::string, std::string> kKnown = {

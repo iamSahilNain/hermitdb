@@ -4,7 +4,7 @@
 #include <cstring>
 #include <fstream>
 
-// Full-dict snapshot serialization. [Claude Code, M5-scoped work done early]
+// Full-dict snapshot serialization.
 //
 // Format v1 ("HDB1"), native-endian — a single-host recovery format, not an
 // interchange format:

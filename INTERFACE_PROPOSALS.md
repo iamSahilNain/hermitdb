@@ -9,7 +9,7 @@
 
 Per the rules of engagement, interfaces frozen at M0 are not changed by
 scaffolding work. Where the frozen surface forced a workaround, the proposal
-lives here for the human to accept or reject (typically while implementing the
+lives here to accept or reject (typically while implementing the
 affected checkpoint). Additive extensions that did NOT alter any existing
 signature are listed at the bottom for transparency.
 

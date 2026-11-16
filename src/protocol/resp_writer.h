@@ -1,5 +1,5 @@
 #pragma once
-// RESP2 reply serialization. [Claude Code] — plumbing, not a checkpoint.
+// RESP2 reply serialization.
 // Every function returns the fully framed wire bytes, ready to queue on a
 // connection's output buffer.
 

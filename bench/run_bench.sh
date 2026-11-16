@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Benchmark matrix per SPEC §7. [Claude Code]
+# Benchmark matrix.
 #
 #   {hermitdb 1/2/4/8 threads, real redis-server} x {SET,GET,INCR}
 #     x {fsync always,everysec,no} x pipeline {1,16}

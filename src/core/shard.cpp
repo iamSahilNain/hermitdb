@@ -23,7 +23,6 @@ namespace hermit::core {
 ShardedServer::ShardedServer(const Config& cfg) : cfg_(cfg) {}
 
 ShardStatus ShardedServer::start_and_run() {
-  // ==== CHECKPOINT 5: YOUR CODE ====
   SystemClock clock;
   Db db;
   ExpiryManager expiry(db, clock);

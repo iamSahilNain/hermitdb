@@ -23,7 +23,6 @@ int64_t micros_now() {
 
 ExpiryManager::ExpiryManager(Db& db, const Clock& clock) : db_(db), clock_(clock) {}
 
-// ==== CHECKPOINT 3: YOUR CODE ====
 
 bool ExpiryManager::untrack(const std::string& key) {
   auto it = index_.find(key);

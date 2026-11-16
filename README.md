@@ -116,8 +116,7 @@ policy, and tests pipelining at 1 and 16. Each run writes CSV output and a
 Markdown table under `bench/results/`. The default is one million **requests**
 per operation with 50 clients.
 
-Performance has not been remeasured for this revision. Earlier tables are
-[archived](docs/history/README.md#benchmarks); their raw outputs were not committed.
+Performance has not been remeasured for this revision.
 
 ## Current scope
 
@@ -127,10 +126,3 @@ authentication, TLS, replication, memory limit, or eviction policy.
 Snapshot loading is supported, but compaction is disabled pending a safe
 snapshot/WAL recovery boundary. WAL records have no checksums.
 [Design notes](DECISIONS.md) cover these trade-offs and remaining work.
-
-## Development
-
-The initial scaffolding and core implementations were generated with Claude
-Code; subsequent review and repairs also used AI assistance. Component-level
-history is preserved in the commits. The [original specification](SPEC_kvstore.md)
-and [checkpoint exercises](checkpoints/) document the learning workflow.

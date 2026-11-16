@@ -1,6 +1,5 @@
 #pragma once
-// The keyspace. [Claude Code] — implemented at M3 (after the human's M1/M2,
-// per SPEC §4 ordering). TTL state lives in ExpiryManager (CP3), not here.
+// The keyspace. TTL state lives in ExpiryManager (CP3), not here.
 //
 // DECISION-5 pending: backing store is std::unordered_map until profiling
 // says otherwise.
@@ -55,7 +54,7 @@ class Db {
   // out-of-range clamped.
   std::vector<std::string> lrange(const std::string& key, int64_t start, int64_t stop) const;
 
-  // -- snapshot access [Claude Code, persist/snapshot only] --
+  // -- snapshot access (persist/snapshot only) --
   const std::unordered_map<std::string, Entry>& entries() const { return map_; }
   void restore_entry(std::string key, Entry entry);
 

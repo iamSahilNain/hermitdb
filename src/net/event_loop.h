@@ -22,7 +22,7 @@ enum class LoopStatus {
 };
 
 // ============================= CHECKPOINT 2 =================================
-// Single-threaded epoll reactor. Study sheet: checkpoints/CP2.md
+// Single-threaded epoll reactor.
 // DECISION-1 pending: level-triggered vs edge-triggered — resolve in
 // DECISIONS.md before implementing; the choice changes the drain loops below.
 //
@@ -62,7 +62,6 @@ class EventLoop {
   void stop() { stop_requested_ = true; }
 
  private:
-  // ==== CHECKPOINT 2: YOUR CODE ====
   // DECISION-1 resolved: LEVEL-TRIGGERED. See DECISIONS.md — the short version
   // is that LT lets a partial drain re-fire instead of hanging the connection,
   // which is the failure mode that actually bites, and it is what Redis's own

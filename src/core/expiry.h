@@ -15,7 +15,6 @@ namespace hermit::core {
 
 // ============================= CHECKPOINT 3 =================================
 // TTL expiry — two cooperating mechanisms, like real Redis.
-// Study sheet: checkpoints/CP3.md
 // DECISION-3 pending: wall vs steady clock (the Clock interface exposes both;
 // which one anchors TTLs — and how replay stays deterministic — is yours).
 //
@@ -58,7 +57,6 @@ class ExpiryManager {
   ActiveCycleStats active_cycle(int64_t budget_us);
 
  private:
-  // ==== CHECKPOINT 3: YOUR CODE ====
   // DECISION-3 resolved: WALL clock. `EXPIRE k 10` is a promise about ten
   // seconds of the user's time, and an absolute wall deadline is the only
   // form that survives serialization into a snapshot and a restart. The NTP

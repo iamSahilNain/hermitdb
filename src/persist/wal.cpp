@@ -45,7 +45,6 @@ Wal::~Wal() {
   }
 }
 
-// ==== CHECKPOINT 4: YOUR CODE ====
 
 std::string Wal::encode(const protocol::Command& cmd) {
   std::string out = "*" + std::to_string(cmd.size()) + "\r\n";
